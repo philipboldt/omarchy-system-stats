@@ -98,7 +98,7 @@ function formatBarText(config, statsData) {
     } else {
       cpuText = formatPct(cpu ? cpu.usagePct : 0)
     }
-    parts.push(glyphFor("cpu") + " " + cpuText)
+    parts.push(cpuText + " " + glyphFor("cpu"))
   }
   if (compartmentBarEnabled(config, "gpu")) {
     var gpu = statsData ? statsData["gpu"] : null
@@ -112,17 +112,17 @@ function formatBarText(config, statsData) {
       } else {
         gpuText = formatPct(gpu.usagePct || 0)
       }
-      parts.push(glyphFor("gpu") + " " + gpuText)
+      parts.push(gpuText + " " + glyphFor("gpu"))
     }
   }
   if (compartmentBarEnabled(config, "memory")) {
     var mem = statsData ? statsData["memory"] : null
-    parts.push(glyphFor("memory") + " " + formatPct(mem ? mem.usagePct : 0))
+    parts.push(formatPct(mem ? mem.usagePct : 0) + " " + glyphFor("memory"))
   }
   if (compartmentBarEnabled(config, "storage")) {
     var stg = statsData ? statsData["storage"] : null
     var stgPct = (stg && stg.mounts && stg.mounts.length > 0 && stg.mounts[0]) ? stg.mounts[0].usagePct : 0
-    parts.push(glyphFor("storage") + " " + formatPct(stgPct))
+    parts.push(formatPct(stgPct) + " " + glyphFor("storage"))
   }
   if (parts.length > 0) return parts.join("  ")
   return ""

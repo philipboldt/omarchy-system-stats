@@ -210,17 +210,23 @@ Panel {
 
   function saveSettings() {
     var next = normalizedSettings({ compartments: draftCompartments })
-    compartmentsConfig = next.compartments
-    root.settings = { compartments: next.compartments }
+    applyCompartments(next.compartments)
+    settingsStatusText = strings.t(canPersistSettings() ? "stats.savedToShell" : "stats.savedForSession")
+  }
+
+  function setShowInBar(id, checked) {
+    var next = cloneObject(compartmentsConfig, {})
+    next[id].showInBar = checked
+    applyCompartments(next)
+  }
+
+  function applyCompartments(next) {
+    compartmentsConfig = next
+    root.settings = Object.assign({}, root.settings, { compartments: next })
     applyTimer()
     startCompartmentTimers()
     if (hasBarWidgets) refresh()
-    if (canPersistSettings()) {
-      bar.shell.updateEntryInline(root.moduleName, { compartments: next.compartments })
-      settingsStatusText = strings.t("stats.savedToShell")
-    } else {
-      settingsStatusText = strings.t("stats.savedForSession")
-    }
+    if (canPersistSettings()) bar.shell.updateEntryInline(root.moduleName, root.settings)
   }
 
   function draftEnabled(id) {
@@ -312,11 +318,53 @@ Panel {
     }
   }
 
-  Component.onCompleted: {
+  Component.onCompleted: syncCompartments()
+  onSettingsChanged: Qt.callLater(syncCompartments)
+
+  function syncCompartments() {
     loadCompartments()
     applyTimer()
     startCompartmentTimers()
     if (hasBarWidgets) refresh()
+  }
+
+  component ShowInBarButton: Button {
+    required property string compartment
+    text: root.compartmentName(compartment)
+    enabled: Model.compartmentEnabled(root.compartmentsConfig, compartment)
+    iconText: selected ? "󰄬" : ""
+    selected: Model.compartmentBarEnabled(root.compartmentsConfig, compartment)
+    bordered: true
+    focusable: true
+    fontFamily: root.fontFamily
+    fontSize: Style.font.bodySmall
+    foreground: root.fg
+    Accessible.checkable: true
+    Accessible.checked: selected
+    onClicked: root.setShowInBar(compartment, !selected)
+  }
+
+  component UsageMeter: ColumnLayout {
+    id: meter
+    property real percentage: 0
+
+    Layout.fillWidth: true
+    spacing: Style.space(5)
+
+    Text {
+      Layout.alignment: Qt.AlignRight
+      textFormat: Text.PlainText
+      text: root.fmtInt(meter.percentage) + "%"
+      color: root.fg
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.displayLarge
+      font.bold: true
+    }
+
+    BarFill {
+      fraction: meter.percentage / 100
+      barColor: Model.usageColor(meter.percentage) || root.fg
+    }
   }
 
   visible: {
@@ -431,6 +479,7 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     text: root.computedBarText
+    fontSize: root.hasBarWidgets ? Style.bar.iconFont : Style.font.body
     fixedWidth: root.hasBarWidgets ? -1 : (root.bar && root.bar.vertical ? -1 : Style.space(27))
     fixedHeight: root.hasBarWidgets ? -1 : (root.bar && root.bar.vertical ? Style.space(26) : -1)
     tooltipText: strings.t("stats.title")
@@ -566,23 +615,8 @@ Panel {
               }
             }
 
-            RowLayout {
-              Layout.fillWidth: true
-              Layout.leftMargin: 4
-              Layout.rightMargin: 4
-              spacing: Style.space(6)
-              BarFill {
-                fraction: (root.statsData["cpu"].usagePct || 0) / 100
-                barColor: Model.usageColor(root.statsData["cpu"].usagePct || 0) || root.fg
-              }
-              Text {
-                  textFormat: Text.PlainText
-                text: fmtInt(root.statsData["cpu"].usagePct) + "%"
-                color: Model.usageColor(root.statsData["cpu"].usagePct || 0) || root.fg
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-              }
+            UsageMeter {
+              percentage: (root.statsData["cpu"] || {}).usagePct || 0
             }
 
             RowLayout {
@@ -654,23 +688,8 @@ Panel {
               font.bold: true
             }
 
-            RowLayout {
-              Layout.fillWidth: true
-              Layout.leftMargin: 4
-              Layout.rightMargin: 4
-              spacing: Style.space(6)
-              BarFill {
-                fraction: (root.statsData["gpu"].usagePct || 0) / 100
-                barColor: Model.usageColor(root.statsData["gpu"].usagePct || 0) || root.fg
-              }
-              Text {
-                  textFormat: Text.PlainText
-                text: fmtInt(root.statsData["gpu"].usagePct) + "%"
-                color: Model.usageColor(root.statsData["gpu"].usagePct || 0) || root.fg
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-              }
+            UsageMeter {
+              percentage: (root.statsData["gpu"] || {}).usagePct || 0
             }
 
             RowLayout {
@@ -734,23 +753,8 @@ Panel {
               font.bold: true
             }
 
-            RowLayout {
-              Layout.fillWidth: true
-              Layout.leftMargin: 4
-              Layout.rightMargin: 4
-              spacing: Style.space(6)
-              BarFill {
-                fraction: (root.statsData["memory"].usagePct || 0) / 100
-                barColor: Model.usageColor(root.statsData["memory"].usagePct || 0) || root.fg
-              }
-              Text {
-                  textFormat: Text.PlainText
-                text: fmtInt(root.statsData["memory"].usagePct) + "%"
-                color: Model.usageColor(root.statsData["memory"].usagePct || 0) || root.fg
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-              }
+            UsageMeter {
+              percentage: (root.statsData["memory"] || {}).usagePct || 0
             }
 
             RowLayout {
@@ -799,7 +803,8 @@ Panel {
             spacing: 8
 
             Text {
-                textFormat: Text.PlainText
+              Layout.fillWidth: true
+              textFormat: Text.PlainText
               text: Model.glyphFor("storage") + "  " + compartmentName("storage")
               color: root.fg
               font.family: root.fontFamily
@@ -818,23 +823,8 @@ Panel {
                 Layout.fillWidth: true
                 spacing: Style.space(2)
 
-                RowLayout {
-                  Layout.fillWidth: true
-                  Layout.leftMargin: 4
-                  Layout.rightMargin: 4
-                  spacing: Style.space(6)
-                  BarFill {
-                    fraction: (modelData.usagePct || 0) / 100
-                    barColor: Model.usageColor(modelData.usagePct || 0) || root.fg
-                  }
-                  Text {
-                      textFormat: Text.PlainText
-                    text: fmtInt(modelData.usagePct) + "%"
-                    color: Model.usageColor(modelData.usagePct || 0) || root.fg
-                    font.family: root.fontFamily
-                    font.pixelSize: Style.font.caption
-                    font.bold: true
-                  }
+                UsageMeter {
+                  percentage: modelData.usagePct || 0
                 }
 
                 Text {
@@ -847,6 +837,35 @@ Panel {
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
                 }
+              }
+            }
+          }
+        }
+
+        ColumnLayout {
+          visible: !root.settingsMode
+          Layout.fillWidth: true
+          spacing: Style.space(6)
+
+          Text {
+            textFormat: Text.PlainText
+            text: strings.t("stats.showInBar")
+            color: root.fg
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(6)
+
+            Repeater {
+              model: ["cpu", "memory", "storage"]
+              delegate: ShowInBarButton {
+                required property string modelData
+                compartment: modelData
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
               }
             }
           }
@@ -1042,15 +1061,15 @@ Panel {
 
   component BarFill: Item {
     property real fraction: 0
-    property string barColor: root.fg
+    property color barColor: root.fg
 
-    implicitHeight: Style.space(6)
+    implicitHeight: Style.space(8)
     Layout.fillWidth: true
 
     Rectangle {
       id: barTrack
       anchors.fill: parent
-      radius: 0
+      radius: height / 2
       color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.12)
     }
 

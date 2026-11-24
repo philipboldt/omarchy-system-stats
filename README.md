@@ -2,6 +2,14 @@
 
 CPU, GPU, memory, and storage monitor for the Omarchy bar. Displays real-time usage with per-compartment toggles and configurable poll intervals.
 
+This fork is based on [JJDizz1L/dizziee.system-stats](https://github.com/JJDizz1L/dizziee.system-stats), the original System Stats plugin for Omarchy Quattro. It keeps the plugin ID `dizziee.system-stats` and the upstream MIT license.
+
+## Changes in this fork
+
+- Bar readouts put the percentage to the left of the metric icon and use the battery widget's font and size.
+- The popup uses large percentages above rounded usage bars, styled after Omarchy's battery popup.
+- The **Show in bar** row at the bottom of the popup lets you toggle CPU, Memory, and Storage directly. A checkmark shows which metrics are active.
+
 ## Requirements
 
 - Python 3
@@ -10,23 +18,19 @@ CPU, GPU, memory, and storage monitor for the Omarchy bar. Displays real-time us
 
 ## Installation
 
-```sh
-omarchy plugin add https://github.com/JJDizz1L/dizziee.system-stats.git --enable
-```
-
-### Then place it in your bar layout with 
-`omarchy bar plugin add dizziee.system-stats [--section <left|center|right>]`</br>
-
-Suggested placement: 
-```
-omarchy bar plugin add dizziee.system-stats --section right
-```
-
-You can validate the plugin at any time with:
+For a fresh local install of this fork, run these commands from the checkout:
 
 ```sh
-omarchy plugin validate ~/.config/omarchy/plugins/dizziee.system-stats
+plugin_dir="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/dizziee.system-stats"
+mkdir -p "$(dirname "$plugin_dir")" &&
+mkdir "$plugin_dir" &&
+cp -R manifest.json Panel.qml Model.js i18n scripts "$plugin_dir/" &&
+omarchy plugin validate "$plugin_dir" &&
+omarchy-shell shell rescanPlugins &&
+omarchy plugin enable dizziee.system-stats --after omarchy.power
 ```
+
+For placement elsewhere, use `omarchy bar move dizziee.system-stats --section right` with your preferred section.
 
 ## Configuration
 Configuration lives in `~/.config/omarchy/shell.json`.
@@ -50,13 +54,13 @@ Configuration lives in `~/.config/omarchy/shell.json`.
 
 ## Show stats in the bar
 
-Right-click the widget and enable **"Show in bar"** per compartment in the
-settings. Compartments shown in the bar keep polling while the panel is closed.
-For CPU and GPU you can also pick the metric shown (`usage`, `temp`, or `both`).
+Left-click the widget and use the **Show in bar** buttons at the bottom to toggle CPU, Memory, or Storage. Changes apply immediately and are saved to the Omarchy shell configuration.
+
+Right-click the widget for advanced settings, including GPU, polling intervals, and the CPU and GPU display modes (`usage`, `temp`, or `both`). Metrics shown in the bar keep updating while the panel is closed.
 
 ## Preview
 
-![preview](preview.png)
+![Upstream System Stats preview](preview.png)
 
 ## Uninstall
 
