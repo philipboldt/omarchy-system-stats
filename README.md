@@ -2,14 +2,14 @@
 
 CPU, GPU, memory, and storage monitor for the Omarchy bar. Displays real-time usage with per-compartment toggles and configurable poll intervals.
 
-This fork is based on [JJDizz1L/dizziee.system-stats](https://github.com/JJDizz1L/dizziee.system-stats), the original System Stats plugin for Omarchy Quattro. It keeps the plugin ID `dizziee.system-stats` and the upstream MIT license.
+[philipboldt/omarchy-system-stats](https://github.com/philipboldt/omarchy-system-stats) is a fork of [JJDizz1L/dizziee.system-stats](https://github.com/JJDizz1L/dizziee.system-stats), the original System Stats plugin for Omarchy Quattro. It keeps the plugin ID `dizziee.system-stats` and the upstream MIT license.
 
 ## Changes in this fork
 
 - Bar readouts put the percentage to the left of the metric icon and use the battery widget's font and size.
 - The popup uses large percentages above rounded usage bars, styled after Omarchy's battery popup.
 - The **Show in bar** row at the bottom of the popup lets you toggle CPU, Memory, and Storage directly. A checkmark shows which metrics are active.
-- Drag the handle on the left of a metric card to reorder it. The order is saved, and the bar shows selected metrics from left to right in the popup's top-to-bottom order.
+- Drag the handle on the left of a metric card to reorder it. The order is saved, and the bar shows selected metrics from right to left in the popup's top-to-bottom order.
 
 ## Requirements
 
@@ -25,7 +25,7 @@ For a fresh local install of this fork, run these commands from the checkout:
 plugin_dir="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/dizziee.system-stats"
 mkdir -p "$(dirname "$plugin_dir")" &&
 mkdir "$plugin_dir" &&
-cp -R manifest.json Panel.qml Model.js i18n scripts "$plugin_dir/" &&
+cp -R manifest.json Panel.qml BarLayoutEditor.qml Model.js i18n scripts "$plugin_dir/" &&
 omarchy plugin validate "$plugin_dir" &&
 omarchy-shell shell rescanPlugins &&
 omarchy plugin enable dizziee.system-stats --after omarchy.power
@@ -58,9 +58,15 @@ Configuration lives in `~/.config/omarchy/shell.json`.
 
 Left-click the widget and use the **Show in bar** buttons at the bottom to toggle CPU, Memory, or Storage. Changes apply immediately and are saved to the Omarchy shell configuration.
 
-To reorder the metrics, drag a card by the dotted handle on its left edge. The bar reads the popup order from top to bottom and displays enabled metrics from left to right. For example, drag Storage above CPU to put Storage first when both are shown. The order persists across shell restarts.
+To reorder the metrics, drag a card by the dotted handle on its left edge. The bar reads the popup order from top to bottom and displays enabled metrics from right to left. For example, drag Storage above CPU to put Storage to the right of CPU when both are shown. The order persists across shell restarts.
 
 Right-click the widget for advanced settings, including GPU, polling intervals, and the CPU and GPU display modes (`usage`, `temp`, or `both`). Metrics shown in the bar keep updating while the panel is closed.
+
+## Reorder Omarchy widgets
+
+Open **Bar Layout** from the System Stats popup. Drag a widget above or below another widget, or drop it on a section heading to move it to the start of that section. Omarchy applies and saves each move. The list also shows installed plugins that have no position in the bar.
+
+System Stats refreshes the installed plugin list each time you open the popup.
 
 ## Preview
 

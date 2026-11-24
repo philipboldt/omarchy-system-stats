@@ -135,7 +135,7 @@ function formatBarText(config, statsData, savedOrder) {
     var stgPct = (stg && stg.mounts && stg.mounts.length > 0 && stg.mounts[0]) ? stg.mounts[0].usagePct : 0
     parts["storage"] = formatPct(stgPct) + " " + glyphFor("storage")
   }
-  return metricOrder(savedOrder).filter(function(id) { return !!parts[id] })
+  return metricOrder(savedOrder).reverse().filter(function(id) { return !!parts[id] })
     .map(function(id) { return parts[id] }).join("  ")
 }
 

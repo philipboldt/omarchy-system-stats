@@ -14,6 +14,7 @@ Panel {
   property var statsData: ({})
   property var compartmentsConfig: ({})
   property bool settingsMode: false
+  property bool layoutMode: false
   property var draftCompartments: ({})
   property string settingsStatusText: ""
   property int dataVersion: 0
@@ -196,6 +197,7 @@ Panel {
   }
 
   function openSettings() {
+    layoutMode = false
     draftCompartments = cloneObject(compartmentsConfig, {})
     settingsStatusText = ""
     settingsMode = true
@@ -315,6 +317,7 @@ Panel {
       fileStat.reload()
     } else {
       settingsMode = false
+      layoutMode = false
       if (!hasBarWidgets) idleTimer.restart()
     }
   }
@@ -576,6 +579,7 @@ Panel {
       blocked: settingsMode && settingsContentLayout.editorActive
       onCloseRequested: root.close()
       onTextKey: function(t) {
+        if (root.layoutMode) return
         if (t === "s" || t === "S") root.settingsMode ? root.saveSettings() : root.openSettings()
         if (t === "r" || t === "R") root.refresh()
       }
@@ -593,7 +597,8 @@ Panel {
 
           Text {
             textFormat: Text.PlainText
-            text: root.settingsMode ? strings.t("stats.settingsTitle") : strings.t("stats.title")
+            text: root.layoutMode ? strings.t("layout.title")
+              : root.settingsMode ? strings.t("stats.settingsTitle") : strings.t("stats.title")
             color: root.fg
             font.family: root.fontFamily
             font.pixelSize: Style.font.title
@@ -603,7 +608,7 @@ Panel {
           }
 
           Button {
-            visible: root.settingsMode
+            visible: root.settingsMode || root.layoutMode
             text: strings.t("stats.stats")
             foreground: root.fg
             tooltipText: strings.t("stats.backToStats")
@@ -611,7 +616,10 @@ Panel {
             fontSize: Style.font.caption
             horizontalPadding: Style.spacing.controlPaddingX
             verticalPadding: Style.spacing.controlPaddingY
-            onClicked: root.showMain()
+            onClicked: {
+              root.layoutMode = false
+              root.showMain()
+            }
           }
 
           Button {
@@ -628,7 +636,7 @@ Panel {
           }
 
           Button {
-            visible: !root.settingsMode
+            visible: !root.settingsMode && !root.layoutMode
             text: strings.t("stats.refresh")
             foreground: root.fg
             tooltipText: strings.t("stats.refreshStats")
@@ -638,6 +646,15 @@ Panel {
             verticalPadding: Style.spacing.controlPaddingY
             onClicked: root.refresh()
           }
+
+          Button {
+            visible: !root.settingsMode && !root.layoutMode
+            text: strings.t("layout.title")
+            foreground: root.fg
+            fontFamily: root.fontFamily
+            fontSize: Style.font.caption
+            onClicked: root.layoutMode = true
+          }
         }
 
         PanelSeparator {
@@ -646,6 +663,7 @@ Panel {
         }
 
         GridLayout {
+          visible: !root.layoutMode
           columns: 1
           Layout.fillWidth: true
           rowSpacing: Style.space(14)
@@ -906,7 +924,7 @@ Panel {
         }
 
         ColumnLayout {
-          visible: !root.settingsMode
+          visible: !root.settingsMode && !root.layoutMode
           Layout.fillWidth: true
           spacing: Style.space(6)
 
@@ -932,6 +950,17 @@ Panel {
               }
             }
           }
+        }
+
+        BarLayoutEditor {
+          visible: root.layoutMode
+          panelOpen: root.opened
+          Layout.fillWidth: true
+          Layout.preferredHeight: Math.min(Style.space(430), Math.max(0, panel.availableCardHeight - Style.space(90)))
+          layout: root.bar && root.bar.shell && root.bar.shell.barConfig ? root.bar.shell.barConfig.layout || {} : {}
+          strings: strings
+          foreground: root.fg
+          fontFamily: root.fontFamily
         }
 
         // Settings view

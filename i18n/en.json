@@ -27,5 +27,16 @@
   "stats.pollInterval": "Poll interval",
   "stats.sec": "sec",
   "stats.swap": "Swap",
-  "stats.vram": "VRAM"
+  "stats.vram": "VRAM",
+  "layout.title": "Bar Layout",
+  "layout.hint": "Drag a widget to reorder it or move it to another section.",
+  "layout.left": "Left",
+  "layout.centerBegin": "Before center",
+  "layout.center": "Center",
+  "layout.centerEnd": "After center",
+  "layout.right": "Right",
+  "layout.tray": "Tray drawer",
+  "layout.otherPlugins": "Other installed plugins",
+  "layout.moveFailed": "Could not move the widget.",
+  "layout.scanFailed": "Could not scan installed plugins."
 }
