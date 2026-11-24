@@ -53,3 +53,15 @@ test("glyphFor covers compartments", () => {
   assert.notEqual(Model.glyphFor("storage"), "")
   assert.equal(Model.glyphFor("unknown"), "")
 })
+
+test("bar metrics follow saved order and omit metrics hidden from the bar", () => {
+  const config = Model.defaultCompartments()
+  config.cpu.showInBar = true
+  config.storage.showInBar = true
+  const stats = { cpu: { usagePct: 23 }, memory: { usagePct: 50 }, storage: { mounts: [{ usagePct: 11 }] } }
+  const cpu = "23% " + Model.glyphFor("cpu")
+  const storage = "11% " + Model.glyphFor("storage")
+
+  assert.equal(Model.formatBarText(config, stats), cpu + "  " + storage)
+  assert.equal(Model.formatBarText(config, stats, ["storage", "memory", "bogus", "storage"]), storage + "  " + cpu)
+})

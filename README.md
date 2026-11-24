@@ -9,6 +9,7 @@ This fork is based on [JJDizz1L/dizziee.system-stats](https://github.com/JJDizz1
 - Bar readouts put the percentage to the left of the metric icon and use the battery widget's font and size.
 - The popup uses large percentages above rounded usage bars, styled after Omarchy's battery popup.
 - The **Show in bar** row at the bottom of the popup lets you toggle CPU, Memory, and Storage directly. A checkmark shows which metrics are active.
+- Drag the handle on the left of a metric card to reorder it. The order is saved, and the bar shows selected metrics from left to right in the popup's top-to-bottom order.
 
 ## Requirements
 
@@ -37,6 +38,7 @@ Configuration lives in `~/.config/omarchy/shell.json`.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
+| `metricOrder` | array of strings | `["cpu", "gpu", "memory", "storage"]` | Saved order of the popup cards and bar readouts |
 | `compartments.cpu.enabled` | boolean | true | Show CPU usage |
 | `compartments.cpu.showInBar` | boolean | false | Show CPU stats in the bar |
 | `compartments.cpu.barDisplay` | string (`usage`, `temp`, `both`) | `usage` | CPU metric to show in the bar |
@@ -55,6 +57,8 @@ Configuration lives in `~/.config/omarchy/shell.json`.
 ## Show stats in the bar
 
 Left-click the widget and use the **Show in bar** buttons at the bottom to toggle CPU, Memory, or Storage. Changes apply immediately and are saved to the Omarchy shell configuration.
+
+To reorder the metrics, drag a card by the dotted handle on its left edge. The bar reads the popup order from top to bottom and displays enabled metrics from left to right. For example, drag Storage above CPU to put Storage first when both are shown. The order persists across shell restarts.
 
 Right-click the widget for advanced settings, including GPU, polling intervals, and the CPU and GPU display modes (`usage`, `temp`, or `both`). Metrics shown in the bar keep updating while the panel is closed.
 

@@ -85,8 +85,19 @@ function formatTemp(value) {
   return Math.round(value || 0) + "\u00B0C"
 }
 
-function formatBarText(config, statsData) {
-  var parts = []
+function metricOrder(savedOrder) {
+  var defaults = Object.keys(defaultCompartments())
+  var order = []
+  if (Array.isArray(savedOrder)) {
+    savedOrder.forEach(function(id) {
+      if (defaults.indexOf(id) !== -1 && order.indexOf(id) === -1) order.push(id)
+    })
+  }
+  return order.concat(defaults.filter(function(id) { return order.indexOf(id) === -1 }))
+}
+
+function formatBarText(config, statsData, savedOrder) {
+  var parts = {}
   if (compartmentBarEnabled(config, "cpu")) {
     var cpu = statsData ? statsData["cpu"] : null
     var cpuMode = barDisplayMode(config, "cpu")
@@ -98,7 +109,7 @@ function formatBarText(config, statsData) {
     } else {
       cpuText = formatPct(cpu ? cpu.usagePct : 0)
     }
-    parts.push(cpuText + " " + glyphFor("cpu"))
+    parts["cpu"] = cpuText + " " + glyphFor("cpu")
   }
   if (compartmentBarEnabled(config, "gpu")) {
     var gpu = statsData ? statsData["gpu"] : null
@@ -112,20 +123,20 @@ function formatBarText(config, statsData) {
       } else {
         gpuText = formatPct(gpu.usagePct || 0)
       }
-      parts.push(gpuText + " " + glyphFor("gpu"))
+      parts["gpu"] = gpuText + " " + glyphFor("gpu")
     }
   }
   if (compartmentBarEnabled(config, "memory")) {
     var mem = statsData ? statsData["memory"] : null
-    parts.push(formatPct(mem ? mem.usagePct : 0) + " " + glyphFor("memory"))
+    parts["memory"] = formatPct(mem ? mem.usagePct : 0) + " " + glyphFor("memory")
   }
   if (compartmentBarEnabled(config, "storage")) {
     var stg = statsData ? statsData["storage"] : null
     var stgPct = (stg && stg.mounts && stg.mounts.length > 0 && stg.mounts[0]) ? stg.mounts[0].usagePct : 0
-    parts.push(formatPct(stgPct) + " " + glyphFor("storage"))
+    parts["storage"] = formatPct(stgPct) + " " + glyphFor("storage")
   }
-  if (parts.length > 0) return parts.join("  ")
-  return ""
+  return metricOrder(savedOrder).filter(function(id) { return !!parts[id] })
+    .map(function(id) { return parts[id] }).join("  ")
 }
 
 if (typeof module !== "undefined") {
@@ -138,6 +149,7 @@ if (typeof module !== "undefined") {
     glyphFor: glyphFor,
     usageColor: usageColor,
     barDisplayMode: barDisplayMode,
+    metricOrder: metricOrder,
     formatBarText: formatBarText,
     cleanDisplayText: cleanDisplayText,
     cleanMounts: cleanMounts,

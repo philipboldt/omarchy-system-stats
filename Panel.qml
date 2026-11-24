@@ -24,7 +24,8 @@ Panel {
   readonly property color dim: Qt.darker(fg, 1.45)
   readonly property string fontFamily: root.bar ? root.bar.fontFamily : "JetBrainsMono Nerd Font"
 
-  readonly property var compartmentIds: ["cpu", "gpu", "memory", "storage"]
+  readonly property var compartmentIds: Model.metricOrder()
+  readonly property var metricOrder: Model.metricOrder(setting("metricOrder", []))
 
   Commons.Translations {
     id: strings
@@ -52,7 +53,7 @@ Panel {
 
   readonly property string computedBarText: {
     if (hasBarWidgets) {
-      var text = Model.formatBarText(compartmentsConfig, statsData)
+      var text = Model.formatBarText(compartmentsConfig, statsData, metricOrder)
       return text !== "" ? text : barIcon
     }
     return barIcon
@@ -328,6 +329,79 @@ Panel {
     if (hasBarWidgets) refresh()
   }
 
+  function moveMetric(source, destination) {
+    if (source === destination) return
+    var order = metricOrder.slice()
+    var targetIndex = order.indexOf(destination)
+    order.splice(order.indexOf(source), 1)
+    order.splice(targetIndex, 0, source)
+    root.settings = Object.assign({}, root.settings, { metricOrder: order })
+    if (canPersistSettings()) bar.shell.updateEntryInline(root.moduleName, root.settings)
+  }
+
+  component MetricCard: BorderSurface {
+    id: card
+    required property string compartment
+    property real dragOffset: 0
+    readonly property bool dragging: grip.pressed && dragOffset !== 0
+
+    Layout.row: root.metricOrder.indexOf(compartment)
+    Layout.column: 0
+    Layout.fillWidth: true
+    padding: 12
+    leftPadding: Style.space(36)
+    radius: Style.cornerRadius
+    color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, dragging ? 0.16 : 0.055)
+    borderSpec: Border.flat(dragging ? Commons.Color.accent : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.05), 1)
+    z: dragging ? 1 : 0
+    transform: Translate { y: card.dragOffset }
+
+    function dropTarget() {
+      var center = y + height / 2 + dragOffset
+      var nearest = card
+      var cards = parent.children
+      for (var i = 0; i < cards.length; i++) {
+        var other = cards[i]
+        if (!other.compartment || !other.visible) continue
+        if (Math.abs(center - other.y - other.height / 2) < Math.abs(center - nearest.y - nearest.height / 2))
+          nearest = other
+      }
+      return nearest.compartment
+    }
+
+    MouseArea {
+      id: grip
+      property real startY: 0
+      anchors.left: parent.left
+      anchors.top: parent.top
+      width: Style.space(34)
+      height: parent.height
+      cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+      preventStealing: true
+      onPressed: function(mouse) {
+        startY = mapToItem(card.parent, mouse.x, mouse.y).y
+      }
+      onPositionChanged: function(mouse) {
+        if (pressed) card.dragOffset = mapToItem(card.parent, mouse.x, mouse.y).y - startY
+      }
+      onReleased: {
+        var destination = card.dropTarget()
+        card.dragOffset = 0
+        root.moveMetric(card.compartment, destination)
+      }
+      onCanceled: card.dragOffset = 0
+
+      Text {
+        anchors.centerIn: parent
+        textFormat: Text.PlainText
+        text: "󰇙"
+        color: grip.pressed ? Commons.Color.accent : root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.icon
+      }
+    }
+  }
+
   component ShowInBarButton: Button {
     required property string compartment
     text: root.compartmentName(compartment)
@@ -571,271 +645,260 @@ Panel {
           foreground: root.fg
         }
 
-        // Main stats view
-        BorderSurface {
-          visible: root.dataVersion >= 0 && !root.settingsMode && root.statsData["cpu"] !== undefined && Model.compartmentEnabled(root.compartmentsConfig, "cpu")
+        GridLayout {
+          columns: 1
           Layout.fillWidth: true
-          color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.055)
-          borderSpec: Border.flat(Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.05), 1)
-          radius: Style.cornerRadius
-          id: cpuCard
-          padding: 12
-          implicitHeight: cpuBody.implicitHeight + cpuCard.contentTopInset + cpuCard.contentBottomInset
+          rowSpacing: Style.space(14)
 
-          ColumnLayout {
-            id: cpuBody
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.topMargin: cpuCard.contentTopInset
-            anchors.rightMargin: cpuCard.contentRightInset
-            anchors.bottomMargin: cpuCard.contentBottomInset
-            anchors.leftMargin: cpuCard.contentLeftInset
-            spacing: 8
+          MetricCard {
+            id: cpuCard
+            compartment: "cpu"
+            visible: root.dataVersion >= 0 && !root.settingsMode && root.statsData["cpu"] !== undefined && Model.compartmentEnabled(root.compartmentsConfig, "cpu")
+            implicitHeight: cpuBody.implicitHeight + cpuCard.contentTopInset + cpuCard.contentBottomInset
 
-            RowLayout {
-              Layout.fillWidth: true
-              Layout.leftMargin: 4
-              Layout.rightMargin: 4
+            ColumnLayout {
+              id: cpuBody
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.top: parent.top
+              anchors.topMargin: cpuCard.contentTopInset
+              anchors.rightMargin: cpuCard.contentRightInset
+              anchors.bottomMargin: cpuCard.contentBottomInset
+              anchors.leftMargin: cpuCard.contentLeftInset
+              spacing: 8
+
+              RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 4
+                Layout.rightMargin: 4
+                Text {
+                    textFormat: Text.PlainText
+                  text: Model.glyphFor("cpu") + "  " + Model.cleanDisplayText(root.statsData["cpu"].name || compartmentName("cpu"), 128)
+                  color: root.fg
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.body
+                  font.bold: true
+                }
+                Item { Layout.fillWidth: true }
+                Text {
+                    textFormat: Text.PlainText
+                  text: (root.statsData["cpu"].cores ? fmtInt(root.statsData["cpu"].cores) : "?") + "C/" + (root.statsData["cpu"].threads ? fmtInt(root.statsData["cpu"].threads) : "?") + "T"
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+              }
+
+              UsageMeter {
+                percentage: (root.statsData["cpu"] || {}).usagePct || 0
+              }
+
+              RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 4
+                Layout.rightMargin: 4
+                spacing: Style.space(12)
+                Text {
+                    textFormat: Text.PlainText
+                  text: "󰔏  " + fmtInt(root.statsData["cpu"].temp) + "\u00B0C"
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+                Text {
+                    textFormat: Text.PlainText
+                  text: "󰓅  " + Commons.I18n.formatNumber(root.statsData["cpu"].freq || 0, 2) + "GHz"
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+                Text {
+                    textFormat: Text.PlainText
+                  visible: (root.statsData["cpu"].governor || "") !== ""
+                  text: "\u2699  " + Model.cleanDisplayText(root.statsData["cpu"].governor || "", 64)
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+                Text {
+                    textFormat: Text.PlainText
+                  visible: (root.statsData["cpu"].power || 0) > 0
+                  text: "  " + Commons.I18n.formatNumber(root.statsData["cpu"].power || 0, 1) + "W"
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+              }
+            }
+          }
+
+          MetricCard {
+            id: gpuCard
+            compartment: "gpu"
+            visible: root.dataVersion >= 0 && !root.settingsMode && root.statsData["gpu"] !== undefined && Model.compartmentEnabled(root.compartmentsConfig, "gpu") && root.statsData["gpu"].available === true
+            implicitHeight: gpuBody.implicitHeight + gpuCard.contentTopInset + gpuCard.contentBottomInset
+
+            ColumnLayout {
+              id: gpuBody
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.top: parent.top
+              anchors.topMargin: gpuCard.contentTopInset
+              anchors.rightMargin: gpuCard.contentRightInset
+              anchors.bottomMargin: gpuCard.contentBottomInset
+              anchors.leftMargin: gpuCard.contentLeftInset
+              spacing: 8
+
               Text {
                   textFormat: Text.PlainText
-                text: Model.glyphFor("cpu") + "  " + Model.cleanDisplayText(root.statsData["cpu"].name || compartmentName("cpu"), 128)
+                text: Model.glyphFor("gpu") + "  " + Model.cleanDisplayText(root.statsData["gpu"].name || compartmentName("gpu"), 128)
                 color: root.fg
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body
                 font.bold: true
               }
-              Item { Layout.fillWidth: true }
-              Text {
-                  textFormat: Text.PlainText
-                text: (root.statsData["cpu"].cores ? fmtInt(root.statsData["cpu"].cores) : "?") + "C/" + (root.statsData["cpu"].threads ? fmtInt(root.statsData["cpu"].threads) : "?") + "T"
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-              }
-            }
 
-            UsageMeter {
-              percentage: (root.statsData["cpu"] || {}).usagePct || 0
-            }
-
-            RowLayout {
-              Layout.fillWidth: true
-              Layout.leftMargin: 4
-              Layout.rightMargin: 4
-              spacing: Style.space(12)
-              Text {
-                  textFormat: Text.PlainText
-                text: "󰔏  " + fmtInt(root.statsData["cpu"].temp) + "\u00B0C"
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-              }
-              Text {
-                  textFormat: Text.PlainText
-                text: "󰓅  " + Commons.I18n.formatNumber(root.statsData["cpu"].freq || 0, 2) + "GHz"
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-              }
-              Text {
-                  textFormat: Text.PlainText
-                visible: (root.statsData["cpu"].governor || "") !== ""
-                text: "\u2699  " + Model.cleanDisplayText(root.statsData["cpu"].governor || "", 64)
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-              }
-              Text {
-                  textFormat: Text.PlainText
-                visible: (root.statsData["cpu"].power || 0) > 0
-                text: "  " + Commons.I18n.formatNumber(root.statsData["cpu"].power || 0, 1) + "W"
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-              }
-            }
-          }
-        }
-
-        BorderSurface {
-          visible: root.dataVersion >= 0 && !root.settingsMode && root.statsData["gpu"] !== undefined && Model.compartmentEnabled(root.compartmentsConfig, "gpu") && root.statsData["gpu"].available === true
-          Layout.fillWidth: true
-          color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.055)
-          borderSpec: Border.flat(Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.05), 1)
-          radius: Style.cornerRadius
-          id: gpuCard
-          padding: 12
-          implicitHeight: gpuBody.implicitHeight + gpuCard.contentTopInset + gpuCard.contentBottomInset
-
-          ColumnLayout {
-            id: gpuBody
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.topMargin: gpuCard.contentTopInset
-            anchors.rightMargin: gpuCard.contentRightInset
-            anchors.bottomMargin: gpuCard.contentBottomInset
-            anchors.leftMargin: gpuCard.contentLeftInset
-            spacing: 8
-
-            Text {
-                textFormat: Text.PlainText
-              text: Model.glyphFor("gpu") + "  " + Model.cleanDisplayText(root.statsData["gpu"].name || compartmentName("gpu"), 128)
-              color: root.fg
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              font.bold: true
-            }
-
-            UsageMeter {
-              percentage: (root.statsData["gpu"] || {}).usagePct || 0
-            }
-
-            RowLayout {
-              Layout.fillWidth: true
-              Layout.leftMargin: 4
-              Layout.rightMargin: 4
-              spacing: Style.space(12)
-              Text {
-                  textFormat: Text.PlainText
-                text: "󰔏  " + fmtInt(root.statsData["gpu"].temp) + "\u00B0C"
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-              }
-              Text {
-                  textFormat: Text.PlainText
-                visible: (root.statsData["gpu"].power || 0) > 0
-                text: "  " + Commons.I18n.formatNumber(root.statsData["gpu"].power || 0, 1) + "W"
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-              }
-              Text {
-                  textFormat: Text.PlainText
-                text: "󰟽  " + strings.t("stats.vram") + " " + Commons.I18n.formatNumber(root.statsData["gpu"].vramUsedGb || 0, 1) + "/" + Commons.I18n.formatNumber(root.statsData["gpu"].vramTotalGb || 0, 1) + "GB"
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-              }
-            }
-          }
-        }
-
-        BorderSurface {
-          visible: root.dataVersion >= 0 && !root.settingsMode && root.statsData["memory"] !== undefined && Model.compartmentEnabled(root.compartmentsConfig, "memory")
-          Layout.fillWidth: true
-          color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.055)
-          borderSpec: Border.flat(Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.05), 1)
-          radius: Style.cornerRadius
-          id: memCard
-          padding: 12
-          implicitHeight: memBody.implicitHeight + memCard.contentTopInset + memCard.contentBottomInset
-
-          ColumnLayout {
-            id: memBody
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.topMargin: memCard.contentTopInset
-            anchors.rightMargin: memCard.contentRightInset
-            anchors.bottomMargin: memCard.contentBottomInset
-            anchors.leftMargin: memCard.contentLeftInset
-            spacing: 8
-
-            Text {
-                textFormat: Text.PlainText
-              text: Model.glyphFor("memory") + "  " + compartmentName("memory")
-              color: root.fg
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              font.bold: true
-            }
-
-            UsageMeter {
-              percentage: (root.statsData["memory"] || {}).usagePct || 0
-            }
-
-            RowLayout {
-              Layout.fillWidth: true
-              Layout.leftMargin: 4
-              Layout.rightMargin: 4
-              spacing: Style.space(12)
-              Text {
-                  textFormat: Text.PlainText
-                text: Model.glyphFor("memory") + "  " + Commons.I18n.formatNumber(root.statsData["memory"].usedGb || 0, 1) + "/" + Commons.I18n.formatNumber(root.statsData["memory"].totalGb || 0, 1) + "GB"
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-              }
-              Text {
-                  textFormat: Text.PlainText
-                visible: (root.statsData["memory"].swapTotalGb || 0) > 0
-                text: "󰓡  " + strings.t("stats.swap") + " " + Commons.I18n.formatNumber(root.statsData["memory"].swapUsedGb || 0, 1) + "/" + Commons.I18n.formatNumber(root.statsData["memory"].swapTotalGb || 0, 1) + "GB"
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-              }
-            }
-          }
-        }
-
-        BorderSurface {
-          visible: root.dataVersion >= 0 && !root.settingsMode && root.statsData["storage"] !== undefined && Model.compartmentEnabled(root.compartmentsConfig, "storage")
-          Layout.fillWidth: true
-          color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.055)
-          borderSpec: Border.flat(Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.05), 1)
-          radius: Style.cornerRadius
-          id: stgCard
-          padding: 12
-          implicitHeight: stgBody.implicitHeight + stgCard.contentTopInset + stgCard.contentBottomInset
-
-          ColumnLayout {
-            id: stgBody
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.topMargin: stgCard.contentTopInset
-            anchors.rightMargin: stgCard.contentRightInset
-            anchors.bottomMargin: stgCard.contentBottomInset
-            anchors.leftMargin: stgCard.contentLeftInset
-            spacing: 8
-
-            Text {
-              Layout.fillWidth: true
-              textFormat: Text.PlainText
-              text: Model.glyphFor("storage") + "  " + compartmentName("storage")
-              color: root.fg
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              font.bold: true
-            }
-
-            Repeater {
-              model: {
-                var d = root.statsData["storage"]
-                return d ? (d.mounts || []) : []
+              UsageMeter {
+                percentage: (root.statsData["gpu"] || {}).usagePct || 0
               }
 
-              delegate: ColumnLayout {
-                required property var modelData
+              RowLayout {
                 Layout.fillWidth: true
-                spacing: Style.space(2)
-
-                UsageMeter {
-                  percentage: modelData.usagePct || 0
-                }
-
+                Layout.leftMargin: 4
+                Layout.rightMargin: 4
+                spacing: Style.space(12)
                 Text {
                     textFormat: Text.PlainText
-                  Layout.fillWidth: true
-                  Layout.leftMargin: 4
-                  Layout.rightMargin: 4
-                  text: Model.cleanDisplayText(modelData.path || "", 128) + "  " + Commons.I18n.formatNumber(modelData.usedGb || 0, 1) + "/" + Commons.I18n.formatNumber(modelData.totalGb || 0, 1) + "GB"
+                  text: "󰔏  " + fmtInt(root.statsData["gpu"].temp) + "\u00B0C"
                   color: root.dim
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
+                }
+                Text {
+                    textFormat: Text.PlainText
+                  visible: (root.statsData["gpu"].power || 0) > 0
+                  text: "  " + Commons.I18n.formatNumber(root.statsData["gpu"].power || 0, 1) + "W"
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+                Text {
+                    textFormat: Text.PlainText
+                  text: "󰟽  " + strings.t("stats.vram") + " " + Commons.I18n.formatNumber(root.statsData["gpu"].vramUsedGb || 0, 1) + "/" + Commons.I18n.formatNumber(root.statsData["gpu"].vramTotalGb || 0, 1) + "GB"
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+              }
+            }
+          }
+
+          MetricCard {
+            id: memCard
+            compartment: "memory"
+            visible: root.dataVersion >= 0 && !root.settingsMode && root.statsData["memory"] !== undefined && Model.compartmentEnabled(root.compartmentsConfig, "memory")
+            implicitHeight: memBody.implicitHeight + memCard.contentTopInset + memCard.contentBottomInset
+
+            ColumnLayout {
+              id: memBody
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.top: parent.top
+              anchors.topMargin: memCard.contentTopInset
+              anchors.rightMargin: memCard.contentRightInset
+              anchors.bottomMargin: memCard.contentBottomInset
+              anchors.leftMargin: memCard.contentLeftInset
+              spacing: 8
+
+              Text {
+                  textFormat: Text.PlainText
+                text: Model.glyphFor("memory") + "  " + compartmentName("memory")
+                color: root.fg
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+              }
+
+              UsageMeter {
+                percentage: (root.statsData["memory"] || {}).usagePct || 0
+              }
+
+              RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 4
+                Layout.rightMargin: 4
+                spacing: Style.space(12)
+                Text {
+                    textFormat: Text.PlainText
+                  text: Model.glyphFor("memory") + "  " + Commons.I18n.formatNumber(root.statsData["memory"].usedGb || 0, 1) + "/" + Commons.I18n.formatNumber(root.statsData["memory"].totalGb || 0, 1) + "GB"
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+                Text {
+                    textFormat: Text.PlainText
+                  visible: (root.statsData["memory"].swapTotalGb || 0) > 0
+                  text: "󰓡  " + strings.t("stats.swap") + " " + Commons.I18n.formatNumber(root.statsData["memory"].swapUsedGb || 0, 1) + "/" + Commons.I18n.formatNumber(root.statsData["memory"].swapTotalGb || 0, 1) + "GB"
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+              }
+            }
+          }
+
+          MetricCard {
+            id: stgCard
+            compartment: "storage"
+            visible: root.dataVersion >= 0 && !root.settingsMode && root.statsData["storage"] !== undefined && Model.compartmentEnabled(root.compartmentsConfig, "storage")
+            implicitHeight: stgBody.implicitHeight + stgCard.contentTopInset + stgCard.contentBottomInset
+
+            ColumnLayout {
+              id: stgBody
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.top: parent.top
+              anchors.topMargin: stgCard.contentTopInset
+              anchors.rightMargin: stgCard.contentRightInset
+              anchors.bottomMargin: stgCard.contentBottomInset
+              anchors.leftMargin: stgCard.contentLeftInset
+              spacing: 8
+
+              Text {
+                Layout.fillWidth: true
+                textFormat: Text.PlainText
+                text: Model.glyphFor("storage") + "  " + compartmentName("storage")
+                color: root.fg
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+              }
+
+              Repeater {
+                model: {
+                  var d = root.statsData["storage"]
+                  return d ? (d.mounts || []) : []
+                }
+
+                delegate: ColumnLayout {
+                  required property var modelData
+                  Layout.fillWidth: true
+                  spacing: Style.space(2)
+
+                  UsageMeter {
+                    percentage: modelData.usagePct || 0
+                  }
+
+                  Text {
+                      textFormat: Text.PlainText
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 4
+                    Layout.rightMargin: 4
+                    text: Model.cleanDisplayText(modelData.path || "", 128) + "  " + Commons.I18n.formatNumber(modelData.usedGb || 0, 1) + "/" + Commons.I18n.formatNumber(modelData.totalGb || 0, 1) + "GB"
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
                 }
               }
             }
@@ -860,7 +923,7 @@ Panel {
             spacing: Style.space(6)
 
             Repeater {
-              model: ["cpu", "memory", "storage"]
+              model: root.metricOrder.filter(function(id) { return id !== "gpu" })
               delegate: ShowInBarButton {
                 required property string modelData
                 compartment: modelData
