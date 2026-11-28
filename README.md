@@ -68,6 +68,11 @@ Open **Bar Layout** from the System Stats popup. Drag a widget above or below an
 
 System Stats refreshes the installed plugin list each time you open the popup.
 
+## Development checks
+
+Run `omarchy plugin validate .` to validate the manifest and
+`node --test tests/model.test.js` to check the model helpers from the repository root.
+
 ## Preview
 
 ![Upstream System Stats preview](preview.png)
